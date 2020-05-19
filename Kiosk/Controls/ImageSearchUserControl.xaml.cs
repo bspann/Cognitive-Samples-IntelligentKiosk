@@ -31,29 +31,19 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using ServiceHelpers;
-using Microsoft.ProjectOxford.Face;
-using Microsoft.ProjectOxford.Face.Contract;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.Storage.Pickers;
-using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
-using Microsoft.ProjectOxford.Common;
 
 // The User Control item template is documented at http://go.microsoft.com/fwlink/?LinkId=234236
 
@@ -105,7 +95,16 @@ namespace IntelligentKioskSample.Controls
             new PropertyMetadata(true)
             );
 
+        public static readonly DependencyProperty ImageSelectionModeProperty =
+            DependencyProperty.Register(
+            "ImageSelectionMode",
+            typeof(ListViewSelectionMode),
+            typeof(ImageSearchUserControl),
+            new PropertyMetadata(ListViewSelectionMode.Single)
+            );
+
         public event EventHandler<IEnumerable<ImageAnalyzer>> OnImageSearchCompleted;
+        public event EventHandler<IEnumerable<ImageAnalyzer>> OnCameraFrameCaptured;
         public event EventHandler OnImageSearchCanceled;
 
         public bool DetectFacesOnLoad
@@ -138,6 +137,12 @@ namespace IntelligentKioskSample.Controls
             set { SetValue(RequireFaceInCameraCaptureProperty, (bool)value); }
         }
 
+        public ListViewSelectionMode ImageSelectionMode
+        {
+            get { return (ListViewSelectionMode)GetValue(ImageSelectionModeProperty); }
+            set { SetValue(ImageSelectionModeProperty, value); }
+        }
+
         public ImageSearchUserControl()
         {
             this.InitializeComponent();
@@ -162,6 +167,7 @@ namespace IntelligentKioskSample.Controls
             {
                 IEnumerable<string> imageUrls = await BingSearchHelper.GetImageSearchResults(query, imageContent: this.ImageContentType, count: 30);
                 this.imageResultsGrid.ItemsSource = imageUrls.Select(url => new ImageAnalyzer(url));
+                this.autoSuggestBox.IsSuggestionListOpen = false;
             }
             catch (Exception ex)
             {
@@ -207,21 +213,13 @@ namespace IntelligentKioskSample.Controls
 
         private void OnAcceptButtonClicked(object sender, RoutedEventArgs e)
         {
-            if (this.OnImageSearchCompleted != null)
-            {
-                this.OnImageSearchCompleted(this, this.imageResultsGrid.SelectedItems.Cast<ImageAnalyzer>().ToArray());
-            }
-
+            this.OnImageSearchCompleted?.Invoke(this, this.imageResultsGrid.SelectedItems.Cast<ImageAnalyzer>().ToArray());
             this.ClearFlyoutState();
         }
 
         private void OnCancelButtonClicked(object sender, RoutedEventArgs e)
         {
-            if (this.OnImageSearchCanceled != null)
-            {
-                this.OnImageSearchCanceled(this, EventArgs.Empty);
-            }
-
+            this.OnImageSearchCanceled?.Invoke(this, EventArgs.Empty);
             this.ClearFlyoutState();
         }
 
@@ -243,7 +241,7 @@ namespace IntelligentKioskSample.Controls
                 fileOpenPicker.FileTypeFilter.Add(".bmp");
                 IReadOnlyList<StorageFile> selectedFiles = await fileOpenPicker.PickMultipleFilesAsync();
 
-                if (selectedFiles != null)
+                if (selectedFiles != null && selectedFiles.Any())
                 {
                     this.OnImageSearchCompleted?.Invoke(this, selectedFiles.Select(file => new ImageAnalyzer(file.OpenStreamForReadAsync, file.Path)));
                 }
@@ -263,7 +261,7 @@ namespace IntelligentKioskSample.Controls
             await this.HandleTrainingImageCapture(e);
         }
 
-        private async Task HandleTrainingImageCapture(ImageAnalyzer img)
+        private async Task HandleTrainingImageCapture(ImageAnalyzer img, bool dismissImageSearchFlyout = true)
         {
             var croppedImage = img;
 
@@ -274,7 +272,14 @@ namespace IntelligentKioskSample.Controls
 
             if (croppedImage != null)
             {
-                this.OnImageSearchCompleted?.Invoke(this, new ImageAnalyzer[] { croppedImage });
+                if (dismissImageSearchFlyout)
+                {
+                    this.OnImageSearchCompleted?.Invoke(this, new ImageAnalyzer[] { croppedImage });
+                }
+                else
+                {
+                    this.OnCameraFrameCaptured?.Invoke(this, new ImageAnalyzer[] { croppedImage });
+                }
             }
         }
 
@@ -296,7 +301,7 @@ namespace IntelligentKioskSample.Controls
             FaceRectangle rect = img.DetectedFaces.First().FaceRectangle;
             double heightScaleFactor = 1.8;
             double widthScaleFactor = 1.8;
-            Rectangle biggerRectangle = new Rectangle
+            FaceRectangle biggerRectangle = new FaceRectangle
             {
                 Height = Math.Min((int)(rect.Height * heightScaleFactor), img.DecodedImageHeight),
                 Width = Math.Min((int)(rect.Width * widthScaleFactor), img.DecodedImageWidth)
@@ -344,7 +349,7 @@ namespace IntelligentKioskSample.Controls
                     if (!this.isProcessingPhoto)
                     {
                         this.isProcessingPhoto = true;
-                        await this.HandleTrainingImageCapture(await this.cameraControl.TakeAutoCapturePhoto());
+                        await this.HandleTrainingImageCapture(await this.cameraControl.TakeAutoCapturePhoto(), dismissImageSearchFlyout: false);
                         this.isProcessingPhoto = false;
                     }
                 });

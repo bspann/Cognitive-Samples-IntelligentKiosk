@@ -1,20 +1,51 @@
-﻿using ServiceHelpers;
-using Microsoft.ProjectOxford.Emotion.Contract;
-using Microsoft.ProjectOxford.Face.Contract;
+﻿// 
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license.
+// 
+// Microsoft Cognitive Services: http://www.microsoft.com/cognitive
+// 
+// Microsoft Cognitive Services Github:
+// https://github.com/Microsoft/Cognitive
+// 
+// Copyright (c) Microsoft Corporation
+// All rights reserved.
+// 
+// MIT License:
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
+// 
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+// 
+// THE SOFTWARE IS PROVIDED ""AS IS"", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// 
+
+using IntelligentKioskSample.Controls;
+using IntelligentKioskSample.MallKioskPageConfig;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
+using ServiceHelpers;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.UI.Popups;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Navigation;
 using Windows.UI.Xaml.Media;
-using System.Collections.ObjectModel;
-using Microsoft.ProjectOxford.Common;
-using IntelligentKioskSample.MallKioskPageConfig;
-using IntelligentKioskSample.Controls;
+using Windows.UI.Xaml.Navigation;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -144,14 +175,20 @@ namespace IntelligentKioskSample.Views
 
             EnterKioskMode();
 
-            if (string.IsNullOrEmpty(SettingsHelper.Instance.FaceApiKey))
+            if (!SettingsHelper.Instance.ShowAgeAndGender)
+            {
+                await new MessageDialog("To use this demo please enable Age and Gender prediction in the Settings screen.", "Age and Gender prediction is disabled").ShowAsync();
+            }
+            else if (string.IsNullOrEmpty(SettingsHelper.Instance.FaceApiKey))
             {
                 await new MessageDialog("Missing Face API Key. Please enter a key in the Settings page.", "Missing Face API Key").ShowAsync();
             }
-
-            await this.cameraControl.StartStreamAsync(isForRealTimeProcessing: true);
-            this.UpdateWebCamHostGridSize();
-            this.StartEmotionProcessingLoop();
+            else
+            {
+                await this.cameraControl.StartStreamAsync(isForRealTimeProcessing: true);
+                this.UpdateWebCamHostGridSize();
+                this.StartEmotionProcessingLoop();
+            }
 
             base.OnNavigatedTo(e);
         }
@@ -199,7 +236,7 @@ namespace IntelligentKioskSample.Views
                 {
                     // Didn't find a personalized recommendation (or we don't have anyone recognized), so default to 
                     // the age/gender-based generic recommendation
-                    Face face = imageWithFaces.DetectedFaces.First();
+                    DetectedFace face = imageWithFaces.DetectedFaces.First();
                     recommendation = this.kioskSettings.GetGenericRecommendationForPerson((int)face.FaceAttributes.Age, face.FaceAttributes.Gender);
                 }
             }
@@ -291,21 +328,21 @@ namespace IntelligentKioskSample.Views
             }
 
             // detect emotions
-            await e.DetectEmotionAsync();
+            await e.DetectFacesAsync(detectFaceAttributes: true);
 
-            if (e.DetectedEmotion.Any())
+            if (e.DetectedFaces.Any())
             {
                 // Update the average emotion response
-                Scores averageScores = new Scores
+                Emotion averageScores = new Emotion
                 {
-                    Happiness = e.DetectedEmotion.Average(em => em.Scores.Happiness),
-                    Anger = e.DetectedEmotion.Average(em => em.Scores.Anger),
-                    Sadness = e.DetectedEmotion.Average(em => em.Scores.Sadness),
-                    Contempt = e.DetectedEmotion.Average(em => em.Scores.Contempt),
-                    Disgust = e.DetectedEmotion.Average(em => em.Scores.Disgust),
-                    Neutral = e.DetectedEmotion.Average(em => em.Scores.Neutral),
-                    Fear = e.DetectedEmotion.Average(em => em.Scores.Fear),
-                    Surprise = e.DetectedEmotion.Average(em => em.Scores.Surprise)
+                    Happiness = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Happiness),
+                    Anger = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Anger),
+                    Sadness = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Sadness),
+                    Contempt = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Contempt),
+                    Disgust = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Disgust),
+                    Neutral = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Neutral),
+                    Fear = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Fear),
+                    Surprise = e.DetectedFaces.Average(f => f.FaceAttributes.Emotion.Surprise)
                 };
 
                 double positiveEmotionResponse = Math.Min(averageScores.Happiness + averageScores.Surprise, 1);
@@ -317,16 +354,16 @@ namespace IntelligentKioskSample.Views
                 // show captured faces and their emotion
                 if (this.emotionFacesGrid.Visibility == Visibility.Visible)
                 {
-                    foreach (var face in e.DetectedEmotion)
+                    foreach (var face in e.DetectedFaces)
                     {
                         // Get top emotion on this face
-                        EmotionData topEmotion = EmotionServiceHelper.ScoresToEmotionData(face.Scores).OrderByDescending(em => em.EmotionScore).First();
+                        KeyValuePair<string, double> topEmotion = Util.EmotionToRankedList(face.FaceAttributes.Emotion).First();
 
                         // Crop this face
-                        Rectangle rect = face.FaceRectangle;
+                        FaceRectangle rect = face.FaceRectangle;
                         double heightScaleFactor = 1.8;
                         double widthScaleFactor = 1.8;
-                        Rectangle biggerRectangle = new Rectangle
+                        FaceRectangle biggerRectangle = new FaceRectangle
                         {
                             Height = Math.Min((int)(rect.Height * heightScaleFactor), e.DecodedImageHeight),
                             Width = Math.Min((int)(rect.Width * widthScaleFactor), e.DecodedImageWidth)
@@ -344,7 +381,7 @@ namespace IntelligentKioskSample.Views
                                 this.EmotionFaces.Clear();
                             }
 
-                            this.EmotionFaces.Add(new EmotionExpressionCapture { CroppedFace = croppedImage, TopEmotion = topEmotion.EmotionName });
+                            this.EmotionFaces.Add(new EmotionExpressionCapture { CroppedFace = croppedImage, TopEmotion = topEmotion.Key });
                         }
                     }
                 }

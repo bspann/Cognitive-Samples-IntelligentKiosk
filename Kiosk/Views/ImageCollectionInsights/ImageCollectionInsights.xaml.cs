@@ -31,7 +31,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
-using Microsoft.ProjectOxford.Common;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using Newtonsoft.Json;
 using ServiceHelpers;
 using System;
@@ -71,11 +71,10 @@ namespace IntelligentKioskSample.Views.ImageCollectionInsights
 
         protected async override void OnNavigatedTo(NavigationEventArgs e)
         {
-            if (string.IsNullOrEmpty(SettingsHelper.Instance.EmotionApiKey) ||
-                string.IsNullOrEmpty(SettingsHelper.Instance.FaceApiKey) ||
+            if (string.IsNullOrEmpty(SettingsHelper.Instance.FaceApiKey) ||
                 string.IsNullOrEmpty(SettingsHelper.Instance.VisionApiKey))
             {
-                await new MessageDialog("Missing Face, Emotion or Vision API Key. Please enter a key in the Settings page.", "Missing API Key").ShowAsync();
+                await new MessageDialog("Missing Face or Vision API Key. Please enter a key in the Settings page.", "Missing API Key").ShowAsync();
             }
 
             base.OnNavigatedTo(e);
@@ -197,6 +196,12 @@ namespace IntelligentKioskSample.Views.ImageCollectionInsights
             {
                 tagsGroupedByCountAndSorted.AddRange(group.OrderBy(t => t.Tag));
             }
+
+            if (!SettingsHelper.Instance.ShowAgeAndGender)
+            {
+                tagsGroupedByCountAndSorted = tagsGroupedByCountAndSorted.Where(t => !Util.ContainsGenderRelatedKeyword(t.Tag)).ToList();
+            }
+
             this.TagFilters.Clear();
             this.TagFilters.AddRange(tagsGroupedByCountAndSorted);
 
@@ -242,7 +247,13 @@ namespace IntelligentKioskSample.Views.ImageCollectionInsights
                     StorageFile file = (await rootFolder.GetFileAsync(insights.ImageId));
                     ImageSource croppedFaced = await Util.GetCroppedBitmapAsync(
                         file.OpenStreamForReadAsync,
-                        new Rectangle { Height = faceInsights.FaceRectangle.Height, Width = faceInsights.FaceRectangle.Width, Left = faceInsights.FaceRectangle.Left, Top = faceInsights.FaceRectangle.Top });
+                        new FaceRectangle
+                        {
+                            Height = faceInsights.FaceRectangle.Height,
+                            Width = faceInsights.FaceRectangle.Width,
+                            Left = faceInsights.FaceRectangle.Left,
+                            Top = faceInsights.FaceRectangle.Top
+                        });
 
                     fvm = new FaceFilterViewModel(faceInsights.UniqueFaceId, croppedFaced);
                     this.FaceFilters.Add(fvm);

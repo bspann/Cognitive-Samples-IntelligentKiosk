@@ -85,9 +85,10 @@ namespace IntelligentKioskSample
                 // propogate settings to the core library
                 SettingsHelper.Instance.SettingsChanged += (target, args) =>
                 {
-                    EmotionServiceHelper.ApiKey = SettingsHelper.Instance.EmotionApiKey;
                     FaceServiceHelper.ApiKey = SettingsHelper.Instance.FaceApiKey;
+                    FaceServiceHelper.ApiEndpoint = SettingsHelper.Instance.FaceApiKeyEndpoint;
                     VisionServiceHelper.ApiKey = SettingsHelper.Instance.VisionApiKey;
+                    VisionServiceHelper.ApiEndpoint = SettingsHelper.Instance.VisionApiKeyEndpoint;
                     ImageAnalyzer.PeopleGroupsUserDataFilter = SettingsHelper.Instance.WorkspaceKey;
                     FaceListManager.FaceListsUserDataFilter = SettingsHelper.Instance.WorkspaceKey;
                     CoreUtil.MinDetectableFaceCoveragePercentage = SettingsHelper.Instance.MinDetectableFaceCoveragePercentage;
@@ -95,7 +96,6 @@ namespace IntelligentKioskSample
 
                 // callbacks for core library
                 FaceServiceHelper.Throttled = () => ShowThrottlingToast("Face");
-                EmotionServiceHelper.Throttled = () => ShowThrottlingToast("Emotion");
                 VisionServiceHelper.Throttled = () => ShowThrottlingToast("Vision");
                 ErrorTrackingHelper.TrackException = (ex, msg) => LogException(ex, msg);
                 ErrorTrackingHelper.GenericApiCallExceptionHandler = Util.GenericApiCallExceptionHandler;
@@ -105,7 +105,6 @@ namespace IntelligentKioskSample
                 // Since it can be a pain to enter these keys in an IoT device, this is a good place to hardcode them if necessary.
                 //SettingsHelper.Instance.WorkspaceKey = "";
                 //SettingsHelper.Instance.FaceApiKey = "";
-                //SettingsHelper.Instance.EmotionApiKey = "";
                 //SettingsHelper.Instance.VisionApiKey = "";
 
                 // Create a AppShell to act as the navigation context and navigate to the first page

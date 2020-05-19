@@ -31,8 +31,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
-using Microsoft.ProjectOxford.Common.Contract;
-using ServiceHelpers;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using System.Linq;
 using Windows.UI.Xaml.Controls;
 
@@ -48,12 +47,12 @@ namespace IntelligentKioskSample.Controls
             InitializeComponent();
         }
 
-        public void UpdateEmotion(EmotionScores scores)
+        public void UpdateEmotion(Emotion emotion)
         {
-            EmotionData topEmotion = EmotionServiceHelper.ScoresToEmotionData(scores).OrderByDescending(d => d.EmotionScore).First();
+            var topEmotion = Util.EmotionToRankedList(emotion).First();
             string label = "", emoji = "";
 
-            switch (topEmotion.EmotionName)
+            switch (topEmotion.Key)
             {
                 case "Anger":
                     label = "Angry";

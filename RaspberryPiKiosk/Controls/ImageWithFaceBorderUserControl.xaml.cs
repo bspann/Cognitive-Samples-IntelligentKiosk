@@ -31,8 +31,6 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
-using Microsoft.ProjectOxford.Emotion.Contract;
-using Microsoft.ProjectOxford.Face.Contract;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -43,6 +41,7 @@ using Windows.UI.Xaml.Media;
 using System.Collections.Generic;
 using System.IO;
 using ServiceHelpers;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 
 // The User Control item template is documented at http://go.microsoft.com/fwlink/?LinkId=234236
 
@@ -53,11 +52,6 @@ namespace IntelligentKioskSample.Controls
         public string Text { get; set; }
         public SolidColorBrush AccentColor { get; set; }
         public string ImageFileName { get; set; }
-    }
-
-    public interface IEmotionFeedbackDataProvider
-    {
-        EmotionFeedback GetEmotionFeedback(Emotion emotion);
     }
 
     public sealed partial class ImageWithFaceBorderUserControl : UserControl
@@ -264,7 +258,7 @@ namespace IntelligentKioskSample.Controls
                 double renderedImageXTransform = this.imageControl.RenderSize.Width / this.bitmapImage.PixelWidth;
                 double renderedImageYTransform = this.imageControl.RenderSize.Height / this.bitmapImage.PixelHeight;
 
-                foreach (Face face in imageWithFace.DetectedFaces)
+                foreach (DetectedFace face in imageWithFace.DetectedFaces)
                 {
                     FaceIdentificationBorder faceUI = new FaceIdentificationBorder()
                     {
@@ -300,7 +294,7 @@ namespace IntelligentKioskSample.Controls
 
                     if (this.ShowRecognitionResults)
                     {
-                        foreach (Face face in imageWithFace.DetectedFaces)
+                        foreach (DetectedFace face in imageWithFace.DetectedFaces)
                         {
                             // Get the border for the associated face id
                             FaceIdentificationBorder faceUI = (FaceIdentificationBorder)this.hostGrid.Children.FirstOrDefault(e => e is FaceIdentificationBorder && (Guid)(e as FaceIdentificationBorder).Tag == face.FaceId);
@@ -310,8 +304,8 @@ namespace IntelligentKioskSample.Controls
                                 IdentifiedPerson faceIdIdentification = imageWithFace.IdentifiedPersons.FirstOrDefault(p => p.FaceId == face.FaceId);
 
                                 string name = this.DetectFaceAttributes && faceIdIdentification != null ? faceIdIdentification.Person.Name : null;
-                                string gender = this.DetectFaceAttributes ? face.FaceAttributes.Gender : null;
-                                double age = this.DetectFaceAttributes ? face.FaceAttributes.Age : 0;
+                                Microsoft.Azure.CognitiveServices.Vision.Face.Models.Gender? gender = this.DetectFaceAttributes ? face.FaceAttributes.Gender : null;
+                                double age = this.DetectFaceAttributes ? face.FaceAttributes.Age.GetValueOrDefault() : 0;
                                 double confidence = this.DetectFaceAttributes && faceIdIdentification != null ? faceIdIdentification.Confidence : 0;
 
                                 faceUI.ShowIdentificationData(age, gender, (uint)Math.Round(confidence * 100), name);
@@ -336,27 +330,27 @@ namespace IntelligentKioskSample.Controls
             ImageAnalyzer imageWithFace = this.DataContext as ImageAnalyzer;
             if (imageWithFace != null)
             {
-                if (imageWithFace.DetectedEmotion == null)
+                if (imageWithFace.DetectedFaces == null)
                 {
-                    await imageWithFace.DetectEmotionAsync();
+                    await imageWithFace.DetectFacesAsync();
                 }
 
                 double renderedImageXTransform = this.imageControl.RenderSize.Width / this.bitmapImage.PixelWidth;
                 double renderedImageYTransform = this.imageControl.RenderSize.Height / this.bitmapImage.PixelHeight;
 
-                foreach (Emotion emotion in imageWithFace.DetectedEmotion)
+                foreach (DetectedFace face in imageWithFace.DetectedFaces)
                 {
                     FaceIdentificationBorder faceUI = new FaceIdentificationBorder();
 
-                    faceUI.Margin = new Thickness((emotion.FaceRectangle.Left * renderedImageXTransform) + ((this.ActualWidth - this.imageControl.RenderSize.Width) / 2),
-                                                    (emotion.FaceRectangle.Top * renderedImageYTransform) + ((this.ActualHeight - this.imageControl.RenderSize.Height) / 2), 0, 0);
+                    faceUI.Margin = new Thickness((face.FaceRectangle.Left * renderedImageXTransform) + ((this.ActualWidth - this.imageControl.RenderSize.Width) / 2),
+                                                    (face.FaceRectangle.Top * renderedImageYTransform) + ((this.ActualHeight - this.imageControl.RenderSize.Height) / 2), 0, 0);
 
                     faceUI.BalloonBackground = this.BalloonBackground;
                     faceUI.BalloonForeground = this.BalloonForeground;
 
-                    faceUI.ShowFaceRectangle(emotion.FaceRectangle.Width * renderedImageXTransform, emotion.FaceRectangle.Height * renderedImageYTransform);
+                    faceUI.ShowFaceRectangle(face.FaceRectangle.Width * renderedImageXTransform, face.FaceRectangle.Height * renderedImageYTransform);
 
-                    faceUI.ShowEmotionData(emotion);
+                    faceUI.ShowEmotionData(face.FaceAttributes.Emotion);
 
                     this.hostGrid.Children.Add(faceUI);
 

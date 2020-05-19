@@ -31,7 +31,7 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
-using Microsoft.ProjectOxford.Common.Contract;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using ServiceHelpers;
 using System;
 using System.Collections.Generic;
@@ -70,13 +70,13 @@ namespace IntelligentKioskSample.Controls
             InitializeComponent();
         }
 
-        public void UpdateEmotion(EmotionScores scores)
+        public void UpdateEmotion(Emotion emotion)
         {
-            EmotionData topEmotion = EmotionServiceHelper.ScoresToEmotionData(scores).OrderByDescending(d => d.EmotionScore).First();
+            KeyValuePair<string, double> topEmotion = Util.EmotionToRankedList(emotion).First();
 
-            this.filledBar.Background = this.emotionToColorMapping[topEmotion.EmotionName];
-            this.emptySpaceRowDefinition.Height = new GridLength(1 - topEmotion.EmotionScore, Windows.UI.Xaml.GridUnitType.Star);
-            this.filledSpaceRowDefinition.Height = new GridLength(topEmotion.EmotionScore, Windows.UI.Xaml.GridUnitType.Star);
+            this.filledBar.Background = this.emotionToColorMapping[topEmotion.Key];
+            this.emptySpaceRowDefinition.Height = new GridLength(1 - topEmotion.Value, Windows.UI.Xaml.GridUnitType.Star);
+            this.filledSpaceRowDefinition.Height = new GridLength(topEmotion.Value, Windows.UI.Xaml.GridUnitType.Star);
         }
     }
 }

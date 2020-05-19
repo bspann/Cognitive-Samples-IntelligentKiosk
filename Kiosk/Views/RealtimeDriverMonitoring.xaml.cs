@@ -32,8 +32,7 @@
 // 
 
 using KioskRuntimeComponent;
-using Microsoft.ProjectOxford.Common;
-using Microsoft.ProjectOxford.Face.Contract;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using ServiceHelpers;
 using System;
 using System.Collections.Generic;
@@ -236,7 +235,7 @@ namespace IntelligentKioskSample.Views
             this.visionLantencyDebugText.Text = string.Format("Vision API latency: {0}ms", (int)latency.TotalMilliseconds);
             this.highLatencyWarning.Visibility = latency.TotalSeconds <= 3 ? Visibility.Collapsed : Visibility.Visible;
 
-            string desc = e.AnalysisResult.Description?.Captions?[0].Text;
+            string desc = e.AnalysisResult.Description?.Captions?.FirstOrDefault()?.Text;
             bool distractionDetected = desc.Contains("phone") || desc.Contains("banana");
             this.distractionChart.DrawDataPoint(distractionDetected ? 1 : 0.02,
                                                 distractionDetected ? BarChartAlertColor : BarChartColor,
@@ -280,19 +279,20 @@ namespace IntelligentKioskSample.Views
                 {
                     name = p.Person.Name;
                 }
-                else
+                else if (SettingsHelper.Instance.ShowAgeAndGender)
                 {
-                    if (faceMatch.Face.FaceAttributes.Gender == "male")
+                    switch (faceMatch.Face.FaceAttributes.Gender)
                     {
-                        name = "Unknown male";
-                    }
-                    else if (faceMatch.Face.FaceAttributes.Gender == "female")
-                    {
-                        name = "Unknown female";
+                        case Gender.Male:
+                            name = "Unknown male";
+                            break;
+                        case Gender.Female:
+                            name = "Unknown female";
+                            break;
                     }
                 }
 
-                this.driverId.Text = string.Format("{0}", name, faceMatch.SimilarPersistedFace.PersistedFaceId.ToString("N").Substring(0, 4));
+                this.driverId.Text = string.Format("{0}", name, faceMatch.SimilarPersistedFace.PersistedFaceId.GetValueOrDefault().ToString("N").Substring(0, 4));
             }
 
             this.isProcessingDriverId = false;
@@ -312,7 +312,7 @@ namespace IntelligentKioskSample.Views
             this.ProcessEyes(f, await GetFaceCropAsync(e));
         }
 
-        private void ProcessHeadPose(Face f, Image img)
+        private void ProcessHeadPose(DetectedFace f, Image img)
         {
             double headPoseDeviation = Math.Abs(f.FaceAttributes.HeadPose.Yaw);
 
@@ -324,7 +324,7 @@ namespace IntelligentKioskSample.Views
                                              this.isInputSourceFromVideo ? Controls.WrapBehavior.Slide : Controls.WrapBehavior.Clear);
         }
 
-        private void ProcessMouth(Face f, Image img)
+        private void ProcessMouth(DetectedFace f, Image img)
         {
             double mouthWidth = Math.Abs(f.FaceLandmarks.MouthRight.X - f.FaceLandmarks.MouthLeft.X);
             double mouthHeight = Math.Abs(f.FaceLandmarks.UpperLipBottom.Y - f.FaceLandmarks.UnderLipTop.Y);
@@ -338,7 +338,7 @@ namespace IntelligentKioskSample.Views
                                                   this.isInputSourceFromVideo ? Controls.WrapBehavior.Slide : Controls.WrapBehavior.Clear);
         }
 
-        private void ProcessEyes(Face f, Image img)
+        private void ProcessEyes(DetectedFace f, Image img)
         {
             double leftEyeWidth = Math.Abs(f.FaceLandmarks.EyeLeftInner.X - f.FaceLandmarks.EyeLeftOuter.X);
             double leftEyeHeight = Math.Abs(f.FaceLandmarks.EyeLeftBottom.Y - f.FaceLandmarks.EyeLeftTop.Y);
@@ -491,7 +491,7 @@ namespace IntelligentKioskSample.Views
                 FaceRectangle rect = img.DetectedFaces.First().FaceRectangle;
                 double heightScaleFactor = 1.8;
                 double widthScaleFactor = 1.8;
-                Rectangle biggerRectangle = new Rectangle
+                FaceRectangle biggerRectangle = new FaceRectangle
                 {
                     Height = Math.Min((int)(rect.Height * heightScaleFactor), img.DecodedImageHeight),
                     Width = Math.Min((int)(rect.Width * widthScaleFactor), img.DecodedImageWidth)

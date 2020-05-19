@@ -31,28 +31,15 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
-using ServiceHelpers;
-using Microsoft.ProjectOxford.Emotion.Contract;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Threading.Tasks;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-using Windows.Storage;
 using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
 using Windows.UI.Xaml.Shapes;
-using Microsoft.ProjectOxford.Face.Contract;
 
 // The User Control item template is documented at http://go.microsoft.com/fwlink/?LinkId=234236
 
@@ -90,7 +77,7 @@ namespace IntelligentKioskSample.Controls
 
         public string CaptionText { get; set; }
 
-        public EmotionData[] EmotionData { get; set; }
+        public KeyValuePair<string, double>[] EmotionData { get; set; }
 
         public FaceIdentificationBorder()
         {
@@ -105,7 +92,7 @@ namespace IntelligentKioskSample.Controls
             this.faceRectangle.Visibility = Visibility.Visible;
         }
 
-        public void ShowFaceLandmarks(double renderedImageXTransform, double renderedImageYTransform, Face face)
+        public void ShowFaceLandmarks(double renderedImageXTransform, double renderedImageYTransform, DetectedFace face)
         {
             // Mouth (6)
             AddFacialLandmark(face, face.FaceLandmarks.MouthLeft, renderedImageXTransform, renderedImageYTransform, Colors.White);
@@ -143,15 +130,15 @@ namespace IntelligentKioskSample.Controls
             AddFacialLandmark(face, face.FaceLandmarks.EyebrowRightOuter, renderedImageXTransform, renderedImageYTransform, Colors.Yellow);
         }
 
-        private void AddFacialLandmark(Face face, FeatureCoordinate feature, double renderedImageXTransform, double renderedImageYTransform, Color color)
+        private void AddFacialLandmark(DetectedFace face, Coordinate coordinate, double renderedImageXTransform, double renderedImageYTransform, Color color)
         {
             double dotSize = 3;
             Rectangle b = new Rectangle { Fill = new SolidColorBrush(color), Width = dotSize, Height = dotSize, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
-            b.Margin = new Thickness(((feature.X - face.FaceRectangle.Left) * renderedImageXTransform) - dotSize / 2, ((feature.Y - face.FaceRectangle.Top) * renderedImageYTransform) - dotSize / 2, 0, 0);
+            b.Margin = new Thickness(((coordinate.X - face.FaceRectangle.Left) * renderedImageXTransform) - dotSize / 2, ((coordinate.Y - face.FaceRectangle.Top) * renderedImageYTransform) - dotSize / 2, 0, 0);
             this.hostGrid.Children.Add(b);
         }
 
-        public void ShowIdentificationData(double age, string gender, uint confidence, string name = null)
+        public void ShowIdentificationData(double age, Gender? gender, uint confidence, string name = null)
         {
             int roundedAge = (int)Math.Round(age);
 
@@ -160,26 +147,30 @@ namespace IntelligentKioskSample.Controls
                 this.CaptionText = string.Format("{0}, {1} ({2}%)", name, roundedAge, confidence);
                 this.genderIcon.Visibility = Visibility.Collapsed;
             }
-            else if (!string.IsNullOrEmpty(gender))
+            else if (SettingsHelper.Instance.ShowAgeAndGender)
             {
                 this.CaptionText = roundedAge.ToString();
-                if (string.Compare(gender, "male", true) == 0)
+                if (gender.HasValue)
                 {
-                    this.genderIcon.Source = new BitmapImage(new Uri("ms-appx:///Assets/male.png"));
-                }
-                else if (string.Compare(gender, "female", true) == 0)
-                {
-                    this.genderIcon.Source = new BitmapImage(new Uri("ms-appx:///Assets/female.png"));
+                    switch (gender)
+                    {
+                        case Gender.Male:
+                            this.genderIcon.Source = new BitmapImage(new Uri("ms-appx:///Assets/male.png"));
+                            break;
+                        case Gender.Female:
+                            this.genderIcon.Source = new BitmapImage(new Uri("ms-appx:///Assets/female.png"));
+                            break;
+                    }
                 }
             }
 
             this.DataContext = this;
-            this.captionCanvas.Visibility = Visibility.Visible;
+            this.captionCanvas.Visibility = !string.IsNullOrEmpty(this.CaptionText) ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public void ShowEmotionData(Emotion emotion)
         {
-            this.EmotionData = EmotionServiceHelper.ScoresToEmotionData(emotion.Scores).OrderByDescending(e => e.EmotionScore).ToArray();
+            this.EmotionData = Util.EmotionToRankedList(emotion);
 
             this.DataContext = this;
 

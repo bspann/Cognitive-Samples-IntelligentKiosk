@@ -31,27 +31,19 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
+using Emmellsoft.IoT.Rpi.SenseHat;
+using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 using ServiceHelpers;
-using IntelligentKioskSample.Controls;
-using Microsoft.ProjectOxford.Common;
-using Microsoft.ProjectOxford.Emotion.Contract;
-using Microsoft.ProjectOxford.Face.Contract;
 using System;
-using System.Collections.Generic;
-using System.IO;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
-using Windows.Graphics.Imaging;
-using Windows.Storage;
+using Windows.Media.SpeechSynthesis;
 using Windows.UI.Popups;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
-using System.ComponentModel;
-using Windows.Media.SpeechSynthesis;
-using Emmellsoft.IoT.Rpi.SenseHat;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -209,7 +201,7 @@ namespace IntelligentKioskSample.Views
             this.visionLantencyDebugText.Text = string.Format("Vision API latency: {0}ms", (int)latency.TotalMilliseconds);
             this.highLatencyWarning.Visibility = latency.TotalSeconds <= 3 ? Visibility.Collapsed : Visibility.Visible;
 
-            string desc = e.AnalysisResult.Description?.Captions?[0].Text;
+            string desc = e.AnalysisResult.Description?.Captions?.FirstOrDefault()?.Text;
             if (string.IsNullOrEmpty(desc) || !this.visionToggle.IsOn)
             {
                 this.objectDistraction.Visibility = Visibility.Collapsed;
@@ -275,17 +267,18 @@ namespace IntelligentKioskSample.Views
                 }
                 else
                 {
-                    if (faceMatch.Face.FaceAttributes.Gender == "male")
+                    switch (faceMatch.Face.FaceAttributes.Gender)
                     {
-                        name = "Unknown male";
-                    }
-                    else if (faceMatch.Face.FaceAttributes.Gender == "female")
-                    {
-                        name = "Unknown female";
+                        case Gender.Male:
+                            name = "Unknown male";
+                            break;
+                        case Gender.Female:
+                            name = "Unknown female";
+                            break;
                     }
                 }
 
-                this.driverId.Text = string.Format("{0}\nFace Id: {1}", name, faceMatch.SimilarPersistedFace.PersistedFaceId.ToString("N").Substring(0, 4));
+                this.driverId.Text = string.Format("{0}\nFace Id: {1}", name, faceMatch.SimilarPersistedFace.PersistedFaceId.GetValueOrDefault().ToString("N").Substring(0, 4));
             }
 
             this.isProcessingDriverId = false;
@@ -317,7 +310,7 @@ namespace IntelligentKioskSample.Views
             this.UpdateLEDLights();
         }
 
-        private void ProcessHeadPose(Face f)
+        private void ProcessHeadPose(DetectedFace f)
         {
             headPoseDeviation = Math.Abs(f.FaceAttributes.HeadPose.Yaw);
 
@@ -330,7 +323,7 @@ namespace IntelligentKioskSample.Views
             }
         }
 
-        private void ProcessMouth(Face f)
+        private void ProcessMouth(DetectedFace f)
         {            
             double mouthWidth = Math.Abs(f.FaceLandmarks.MouthRight.X - f.FaceLandmarks.MouthLeft.X);
             double mouthHeight = Math.Abs(f.FaceLandmarks.UpperLipBottom.Y - f.FaceLandmarks.UnderLipTop.Y);
@@ -346,7 +339,7 @@ namespace IntelligentKioskSample.Views
             }
         }
 
-        private void ProcessEyes(Face f)
+        private void ProcessEyes(DetectedFace f)
         {
             double leftEyeWidth = Math.Abs(f.FaceLandmarks.EyeLeftInner.X - f.FaceLandmarks.EyeLeftOuter.X);
             double leftEyeHeight = Math.Abs(f.FaceLandmarks.EyeLeftBottom.Y - f.FaceLandmarks.EyeLeftTop.Y);
